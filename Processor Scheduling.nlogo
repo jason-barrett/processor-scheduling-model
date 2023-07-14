@@ -29,10 +29,10 @@ end
 to setup
   clear-all
 
-  create-processes 1 [
+  create-processes num-processes [
     set workload initialize-workload
     set progress-pointer 0
-    render-workload 0
+    render-workload (who * 2)
     set hidden? true
   ]
 
@@ -42,7 +42,7 @@ end
 to go
   ask processes [
     advance-workload
-    render-workload 0
+    render-workload (who * 2)
   ]
 
   tick
@@ -235,6 +235,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+9
+17
+181
+50
+num-processes
+num-processes
+1
+8
+5.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
