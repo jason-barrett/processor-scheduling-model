@@ -39,6 +39,15 @@ to setup
   reset-ticks
 end
 
+to go
+  ask processes [
+    advance-workload
+    render-workload 0
+  ]
+
+  tick
+end
+
 ;; Generate a pseudo-random workload based on the given cpu-bound-percentage.
 to-report initialize-workload
   let avg-run-length workload-length / 10
@@ -75,6 +84,9 @@ to render-workload [ xpos ]
 
   let ypos max-pycor
 
+  ;; Clean the slate.
+  ask patches with [ pxcor = xpos ] [ set pcolor black ]
+
   ;; Remove elements of the workload list prior to the current progress pointer.
   foreach workload[
     x -> if x <= progress-pointer [ set my-workload but-first my-workload ]
@@ -82,14 +94,14 @@ to render-workload [ xpos ]
 
   ;; Iterate over this window.  Switch the state, and therefore the patch rendering color, every time we hit
   ;; a number on the process's workload.
-  repeat workload-length - progress-pointer [
+  repeat (workload-length - progress-pointer) [
     ask patch xpos ypos [
       ifelse current-activity = CPU-INST [ set pcolor red ][ set pcolor blue ]
     ]
 
     ;; Check if the current activity needs to change
     set my-pointer my-pointer + 1
-    if my-pointer = first my-workload [
+    if not empty? my-workload and my-pointer = first my-workload [
       set current-activity (current-activity + 1) mod 2
       set my-workload but-first my-workload
 
@@ -123,6 +135,14 @@ to-report processor-state
 
   ;; The progress pointer is in the final state of the workload (beyond the last number in the 'workload' list).
   report my-state
+end
+
+;; Move forward one step in the workload, if possible (i.e., if I don't need a CPU and not have one)
+;; This is called by a process.
+to advance-workload
+  if progress-pointer < workload-length [
+    set progress-pointer progress-pointer + 1
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -189,6 +209,23 @@ BUTTON
 196
 NIL
 setup
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+114
+163
+177
+196
+NIL
+go
 NIL
 1
 T
