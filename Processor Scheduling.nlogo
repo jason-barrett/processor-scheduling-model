@@ -3,6 +3,7 @@
 ;; Summer 2023
 
 breed [ processes process ]
+breed [ cpus cpu ]
 
 globals [
   ;; State constants.
@@ -19,32 +20,72 @@ processes-own [
   progress-pointer
 ]
 
-to startup
-  ;; Set permanent values for state constants.
-  set CPU-INST 0
-  set IO-INST 1
+cpus-own [
+  ;; The current process that is linked to and 'owns' this CPU, referenced by its who number.
+  current-process
 
-end
+  ;; For evaluation of metrics, store the number of ticks this CPU did not spend doing useful work.
+  ticks-spent-idle
+]
 
 to setup
   clear-all
 
+  ;; Set permanent values for state constants.
+  set CPU-INST 0
+  set IO-INST 1
+
+  ;; Set the default share for the CPU icon.
+  set-default-shape cpus "flag"
+
   create-processes num-processes [
     set workload initialize-workload
     set progress-pointer 0
-    render-workload (who * 2)
+    render-workload get-x-position
     set hidden? true
   ]
 
-  reset-ticks
-end
+  ;; Create the CPUs.  Start with one and make this variable later.
+  ;;
+  ;; Note that who numbers are unique across breeds, so the CPUs can't be referred to starting with who
+  ;; number 0.
+  create-cpus 1 [
 
-to go
-  ask processes [
-    advance-workload
-    render-workload (who * 2)
+    set current-process 0  ;; Using who number as a proxy for priority for now.
+    create-link-with process 0
+
+    set ticks-spent-idle 0
+    setxy 0 max-pycor
   ]
 
+  ;; Don't show the links on the screen.
+  ask links[
+    hide-link
+  ]
+
+  reset-ticks
+
+end  ;; setup
+
+to go
+
+  ;; Progress the workloads.
+  ask processes [
+    advance-workload
+    render-workload get-x-position
+
+    if is-workload-complete = true [
+      finalize-workload  ;; This should release the CPU the process has been running on.
+      die
+    ]
+  ]
+
+  ;; Any processes holding CPUs may consider yielding them here.
+
+  ;; Handle allocation of free CPUs.
+
+
+  ;; Time marches on.
   tick
 end
 
@@ -61,7 +102,8 @@ to-report initialize-workload
   ;; this is a potential enhancement.
   let workload-pointer 0
   while [ workload-pointer < workload-length ] [
-    ;; Make sure the workload pointer advances at least 1.
+    ;; Make sure the workload pointer advances at least 1, so there are no stretches of zero (or fewer!) CPU or I/O
+    ;; instructions.
     let workload-pointer-increment round random-normal avg-run-length std-run-length
     if workload-pointer-increment < 1 [ set workload-pointer-increment 1 ]
     set workload-pointer workload-pointer + workload-pointer-increment
@@ -73,6 +115,7 @@ to-report initialize-workload
 
 end
 
+
 ;; Render the workload visually on the screen, using colored patches to represent CPU time and I/O time.
 ;; This is called by a process, which only has one workload to render.
 to render-workload [ xpos ]
@@ -82,7 +125,8 @@ to render-workload [ xpos ]
   let my-workload workload
   let my-pointer progress-pointer
 
-  let ypos max-pycor
+  ;; Start the rendering a couple of patches from the top to make way for a CPU icon.
+  let ypos max-pycor - 2
 
   ;; Clean the slate.
   ask patches with [ pxcor = xpos ] [ set pcolor black ]
@@ -115,6 +159,14 @@ to render-workload [ xpos ]
 
 end
 
+
+;; Get the horizontal position where this process will render on the screen.
+;; This is called by a process.
+to-report get-x-position
+  report who * 2
+end
+
+
 ;; Determine the processor's current state (CPU or I/O), given its workload and progress pointer.
 ;; This is called by a process.
 to-report processor-state
@@ -137,12 +189,36 @@ to-report processor-state
   report my-state
 end
 
+
+;; Reports true if the processor has completed its workload, false if it has not.
+;; This is called by a process.
+to-report is-workload-complete
+  ifelse progress-pointer >= workload-length[ report true ] [ report false ]
+end
+
+
 ;; Move forward one step in the workload, if possible (i.e., if I don't need a CPU and not have one)
 ;; This is called by a process.
 to advance-workload
   if progress-pointer < workload-length [
-    set progress-pointer progress-pointer + 1
+    ifelse processor-state = IO-INST [
+      set progress-pointer progress-pointer + 1
+    ] [
+      ;; CPU-INST case, only advance if on a CPU
+     if count link-neighbors = 1 [
+        set progress-pointer progress-pointer + 1
+      ]
+    ]
   ]
+end
+
+
+;; Special processing for reaching the end of a workload.
+;;
+;; At a minimum, release the CPU the process has been using.  Fireworks optional.
+;; This is called by a process.
+to finalize-workload
+  ask my-links [ die ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
