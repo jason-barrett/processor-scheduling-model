@@ -24,6 +24,10 @@ processes-own [
 
   ;; The priority of this process.  Lower numbers = higher priority.
   priority
+
+  ;; Track the amount of time that the process has held a CPU.  This should increment on every tick when the process
+  ;; has a CPU, and reset to 0 when the process gives up the CPU.
+  time-on-cpu
 ]
 
 cpus-own [
@@ -52,6 +56,8 @@ to setup
     set yielded-this-tick? false
 
     set priority who
+
+    set time-on-cpu 0
   ]
 
   ;; Create the CPUs.  Start with one and make this variable later.
@@ -90,7 +96,13 @@ to go
     ]
   ]
 
+  ;; Track statistics.
+  ask processes with [ count link-neighbors = 1 ] [
+    set time-on-cpu time-on-cpu + 1
+  ]
+
   ;; Any processes holding CPUs may consider yielding them here.
+
 
   ;; Handle allocation of free CPUs.
   ask cpus with [ count my-links = 0 ] [
