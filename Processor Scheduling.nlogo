@@ -18,6 +18,12 @@ processes-own [
 
   ;; The progress pointer is a state variable that indicates where in the workload this process is.
   progress-pointer
+
+  ;; A temporary state flag that prevents a process from yielding and being granted the CPU in the same tick.
+  yielded-this-tick?
+
+  ;; The priority of this process.  Lower numbers = higher priority.
+  priority
 ]
 
 cpus-own [
@@ -43,6 +49,9 @@ to setup
     set progress-pointer 0
     render-workload get-x-position
     set hidden? true
+    set yielded-this-tick? false
+
+    set priority who
   ]
 
   ;; Create the CPUs.  Start with one and make this variable later.
@@ -51,11 +60,12 @@ to setup
   ;; number 0.
   create-cpus 1 [
 
-    set current-process 0  ;; Using who number as a proxy for priority for now.
-    create-link-with process 0
+    set current-process highest-priority-process
+    create-link-with highest-priority-process
+
+    position-cpu-icon
 
     set ticks-spent-idle 0
-    setxy 0 max-pycor
   ]
 
   ;; Don't show the links on the screen.
@@ -83,7 +93,18 @@ to go
   ;; Any processes holding CPUs may consider yielding them here.
 
   ;; Handle allocation of free CPUs.
+  ask cpus with [ count my-links = 0 ] [
+    allocate-next-highest-priority
+    position-cpu-icon
+  ]
 
+  ;; Clear per-tick state.
+  ask processes [
+    set yielded-this-tick? false
+  ]
+
+  ;; Stop the model once every process has completed and died.
+  if count processes = 0 [ stop ]
 
   ;; Time marches on.
   tick
@@ -219,6 +240,38 @@ end
 ;; This is called by a process.
 to finalize-workload
   ask my-links [ die ]
+end
+
+
+;; An allocation strategy that simply chooses the next highest priority process.
+;; This is called by a CPU, and should only be called by a free CPU (not linked to anything).
+to allocate-next-highest-priority
+  create-link-with highest-priority-process
+  ask links [
+    hide-link
+  ]
+end
+
+;; Set the x (horizontal) position of the CPU icon, based on the process it's currently linked with.  If there's
+;; no process (the CPU is free), put it all the way to the left for now.
+;; This is called by a CPU.
+to position-cpu-icon
+    let cpu-x-position min-pxcor
+
+    ;; The process turtle at the other end of the link knows its x position, which we also want to use for the
+    ;; CPU icon.  So ask it to set that variable for us.
+    if count my-links = 1 [
+      ask link-neighbors [ set cpu-x-position get-x-position ]
+    ]
+    setxy cpu-x-position max-pycor
+
+end
+
+;; Reports the highest priority process still alive.
+;; This is called by the observer.
+to-report highest-priority-process
+  ;; Remember, lower priority numbers mean higher priority.
+  report min-one-of processes [ priority ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
