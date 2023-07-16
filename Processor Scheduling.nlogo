@@ -101,12 +101,27 @@ to go
     set time-on-cpu time-on-cpu + 1
   ]
 
-  ;; Any processes holding CPUs may consider yielding them here.
+  ask cpus with [ count link-neighbors = 1 ] [
+   ;; Think about the best way to determine if the linked process just did an IO or a CPU instruction.
+
+  ]
+
+  ;; Stop the model once every process has completed and died.
+  if count processes = 0 [ stop ]
+
+  ;; Any processes holding CPUs may consider yielding them here.  No process should yield the CPU if it is the only
+  ;; process still running.
 
 
   ;; Handle allocation of free CPUs.
   ask cpus with [ count my-links = 0 ] [
-    allocate-next-highest-priority
+    (ifelse free-cpu-allocation-strategy = "Highest Priority" [
+      allocate-next-highest-priority
+    ]
+    free-cpu-allocation-strategy = "Random" [
+      allocate-random
+    ])
+
     position-cpu-icon
   ]
 
@@ -114,9 +129,6 @@ to go
   ask processes [
     set yielded-this-tick? false
   ]
-
-  ;; Stop the model once every process has completed and died.
-  if count processes = 0 [ stop ]
 
   ;; Time marches on.
   tick
@@ -264,6 +276,17 @@ to allocate-next-highest-priority
   ]
 end
 
+
+;; An allocation strategy that chooses the next process at random.
+;; This is called by a CPU, and should only be called by a free CPU (not linked to anything).
+to allocate-random
+  create-link-with random-process
+  ask links [
+    hide-link
+  ]
+end
+
+
 ;; Set the x (horizontal) position of the CPU icon, based on the process it's currently linked with.  If there's
 ;; no process (the CPU is free), put it all the way to the left for now.
 ;; This is called by a CPU.
@@ -279,11 +302,18 @@ to position-cpu-icon
 
 end
 
-;; Reports the highest priority process still alive.
+;; Reports the highest priority process still alive, which is eligible to take a CPU (i.e., it has not just yielded).
 ;; This is called by the observer.
 to-report highest-priority-process
   ;; Remember, lower priority numbers mean higher priority.
-  report min-one-of processes [ priority ]
+  report min-one-of processes with [ yielded-this-tick? = false ] [ priority ]
+end
+
+
+;; Reports a random process still alive, which is eligible to take a CPU (i.e., it has not just yielded).
+;; This is called by the observer.
+to-report random-process
+  report one-of processes with [ yielded-this-tick? = false ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -337,17 +367,17 @@ workload-length
 workload-length
 20
 200
-50.0
+30.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-11
-163
-84
-196
+8
+202
+81
+235
 NIL
 setup
 NIL
@@ -361,10 +391,10 @@ NIL
 1
 
 BUTTON
-114
-163
-177
-196
+111
+202
+174
+235
 NIL
 go
 NIL
@@ -391,6 +421,16 @@ num-processes
 1
 NIL
 HORIZONTAL
+
+CHOOSER
+7
+145
+231
+190
+free-cpu-allocation-strategy
+free-cpu-allocation-strategy
+"Highest Priority" "Random"
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
