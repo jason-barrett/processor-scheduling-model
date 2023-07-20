@@ -102,8 +102,10 @@ to go
   ]
 
   ask cpus with [ count link-neighbors = 1 ] [
-   ;; Think about the best way to determine if the linked process just did an IO or a CPU instruction.
-
+    ;; Determine whether the linked process just did an IO or a CPU instruction.
+    if count link-neighbors with [ workload-activity-at-step (progress-pointer - 1) = IO-INST ] = 1 [
+      set ticks-spent-idle ticks-spent-idle + 1
+    ]
   ]
 
   ;; Stop the model once every process has completed and died.
@@ -111,6 +113,14 @@ to go
 
   ;; Any processes holding CPUs may consider yielding them here.  No process should yield the CPU if it is the only
   ;; process still running.
+  if count processes > 1 [
+    ask processes with [ count link-neighbors = 1 ] [
+      if random-float 1.0 < yield-probability-by-priority [
+        yield-cpu
+        set yielded-this-tick? true
+      ]
+    ]
+  ]
 
 
   ;; Handle allocation of free CPUs.
@@ -133,6 +143,7 @@ to go
   ;; Time marches on.
   tick
 end
+
 
 ;; Generate a pseudo-random workload based on the given cpu-bound-percentage.
 to-report initialize-workload
@@ -258,11 +269,74 @@ to advance-workload
 end
 
 
+;; Gets the workload instruction type (CPU-INST or IO-INST) at a given step in the workload (must be between 0 and
+;; workload-length - 1).
+;; This is called by a process.
+to-report workload-activity-at-step [ step ]
+  if step < 0 or step >= workload-length [
+    ;; This is an error.
+    report -1
+  ]
+
+  let my-pointer 0
+  let current-activity CPU-INST  ;; Every workload starts on a CPU instruction.
+  let my-workload workload
+
+  ;; Loop through the workload and keep track of the current activity until we hit 'step', then drop out.  The
+  ;; activity we're on at that point is the one to report.
+  ;;
+  ;; It would probably be better to replace this with a list representation of the activity at each step.
+  while [ my-pointer <= step ] [
+
+    if not empty? my-workload and my-pointer = first my-workload [
+      set current-activity (current-activity + 1) mod 2
+      set my-workload but-first my-workload
+    ]
+
+    set my-pointer my-pointer + 1
+  ]
+
+  report current-activity
+
+end
+
+
 ;; Special processing for reaching the end of a workload.
 ;;
 ;; At a minimum, release the CPU the process has been using.  Fireworks optional.
 ;; This is called by a process.
 to finalize-workload
+  ask my-links [ die ]
+end
+
+;; Calculate the probability of yielding the CPU, based on the priority of the current process.
+;; This is called by a process.
+to-report yield-probability-by-priority
+  ;; This process needs to know its ranking in priority among other current running processes.
+  ;;
+  ;; Let's say we have a 10% of yielding the CPU if we're the highest priority process, 90% if the lowest, and the others
+  ;; are evenly distributed in between.
+  let process-list sort-on [ priority ] processes                     ;; List of processes
+  let priority-list remove-duplicates map [ priority ] process-list   ;; Sorted list of unique priorities
+
+  ;;If somehow this was called by the only active CPU, it will not yield.
+  if length process-list = 1 [ report 0.0 ]
+
+  let idx 0
+  while [ priority != item idx priority-list ] [
+    set idx idx + 1
+  ]
+
+  let yield-probability 0.1 + (idx * ((0.9 - 0.1) / (length process-list - 1)))
+
+  report yield-probability
+
+end
+
+
+;; Yield the CPU.
+;; This is called by a process.
+to yield-cpu
   ask my-links [ die ]
 end
 
