@@ -115,7 +115,8 @@ to go
   ;; process still running.
   if count processes > 1 [
     ask processes with [ count link-neighbors = 1 ] [
-      if random-float 1.0 < yield-probability-by-priority [
+      ;;if random-float 1.0 < yield-probability-by-priority [
+      if random-float 1.0 < yield-probability-by-lookahead-window [
         yield-cpu
         set yielded-this-tick? true
       ]
@@ -151,23 +152,38 @@ to-report initialize-workload
   let std-run-length 3
   let workload-list []
 
-  ;; We'll represent the workload as a set of numbers along the workload-length, where the program switches
-  ;; from CPU instructions to waiting for I/O, or vice versa.
+  ;; We'll represent the workload as a list of activities (CPU-INST or IO-INST) for each step.
   ;;
-  ;; Strictly speaking the workload should probably always start and end on a run of CPU instructions.  Implementing
-  ;; this is a potential enhancement.
+  ;; Start by building a list of the points in the workload where the activity changes,  Strictly speaking the
+  ;; workload should probably always start and end on a run of CPU instructions.  Implementing this is a potential
+  ;; enhancement.
   let workload-pointer 0
   while [ workload-pointer < workload-length ] [
     ;; Make sure the workload pointer advances at least 1, so there are no stretches of zero (or fewer!) CPU or I/O
     ;; instructions.
     let workload-pointer-increment round random-normal avg-run-length std-run-length
     if workload-pointer-increment < 1 [ set workload-pointer-increment 1 ]
+
     set workload-pointer workload-pointer + workload-pointer-increment
     set workload-list lput workload-pointer workload-list
   ]
 
+  ;; Iterate over the list of change points and fill in the list of activities
+  let my-pointer 0
+  let current-activity CPU-INST
+  let workload-array []
+  repeat workload-length [
+    set workload-array lput current-activity workload-array
+
+    set my-pointer my-pointer + 1
+    if not empty? workload-list and my-pointer = first workload-list [
+      set current-activity (current-activity + 1) mod 2
+      set workload-list but-first workload-list
+    ]
+  ]
+
   ;; The last iteration went beyond the end of the list, so truncate it by 1.
-  report sort but-last workload-list
+  report workload-array
 
 end
 
@@ -192,8 +208,7 @@ to render-workload [ xpos ]
     x -> if x <= progress-pointer [ set my-workload but-first my-workload ]
   ]
 
-  ;; Iterate over this window.  Switch the state, and therefore the patch rendering color, every time we hit
-  ;; a number on the process's workload.
+  ;; Iterate over this window.
   repeat (workload-length - progress-pointer) [
     ask patch xpos ypos [
       ifelse current-activity = CPU-INST [ set pcolor red ][ set pcolor blue ]
@@ -201,12 +216,7 @@ to render-workload [ xpos ]
 
     ;; Check if the current activity needs to change
     set my-pointer my-pointer + 1
-    if not empty? my-workload and my-pointer = first my-workload [
-      set current-activity (current-activity + 1) mod 2
-      set my-workload but-first my-workload
-
-    ]
-
+    set current-activity workload-activity-at-step my-pointer
     ;; Don't render past the end of the screen.
     if ypos = min-pycor [ stop ]
 
@@ -226,23 +236,7 @@ end
 ;; Determine the processor's current state (CPU or I/O), given its workload and progress pointer.
 ;; This is called by a process.
 to-report processor-state
-  ;; Every workload starts with CPU instructions.
-  let my-state CPU-INST
-
-  ;; The workload is represented as a list of instructions at which the process switches from CPU to I/O
-  ;; or vice-versa.  For instance (6 11 17 23) indicates that the process spends 6 ticks (0-5) doing CPU work,
-  ;; then ticks 6-10 waiting for I/O, 11-16 doing CPU work, etc.
-  ;;
-  ;; The progress pointer is where the process stands now.  We'll flip the state at every number in 'workload'
-  ;; until we 'pass' the progress-pointer.  Then we return the state where we currently sit.
-  ;;
-  ;; In the example above, if the PP is 4, we'll return CPU-INST.  If it's 9, we'll return IO-INST.  And so on.
-  foreach workload [
-    x -> ifelse progress-pointer >= x [ set my-state (my-state + 1) mod 2 ] [ report my-state ]
-  ]
-
-  ;; The progress pointer is in the final state of the workload (beyond the last number in the 'workload' list).
-  report my-state
+  report workload-activity-at-step progress-pointer
 end
 
 
@@ -278,26 +272,7 @@ to-report workload-activity-at-step [ step ]
     report -1
   ]
 
-  let my-pointer 0
-  let current-activity CPU-INST  ;; Every workload starts on a CPU instruction.
-  let my-workload workload
-
-  ;; Loop through the workload and keep track of the current activity until we hit 'step', then drop out.  The
-  ;; activity we're on at that point is the one to report.
-  ;;
-  ;; It would probably be better to replace this with a list representation of the activity at each step.
-  while [ my-pointer <= step ] [
-
-    if not empty? my-workload and my-pointer = first my-workload [
-      set current-activity (current-activity + 1) mod 2
-      set my-workload but-first my-workload
-    ]
-
-    set my-pointer my-pointer + 1
-  ]
-
-  report current-activity
-
+  report item step workload
 end
 
 
@@ -330,6 +305,34 @@ to-report yield-probability-by-priority
   let yield-probability 0.1 + (idx * ((0.9 - 0.1) / (length process-list - 1)))
 
   report yield-probability
+
+end
+
+
+;; Calculate the probability of yielding the CPU based on the upcoming series of instructions.  For starters, base
+;; the yield probability simply on the propotion of instructions in the lookahead window that are CPU vs. I/O waits.
+;; This is called by a process.
+to-report yield-probability-by-lookahead-window
+  let my-pointer progress-pointer
+  let my-workload workload
+
+  ;; Look at the next N instructions, but stop if the progress pointer would exceed the workflow length.
+  let total-activities 0
+  let io-activities 0
+  let idx 0
+  while [ idx < lookahead-window and my-pointer < workload-length ] [
+    set total-activities total-activities + 1
+    if workload-activity-at-step my-pointer = IO-INST [
+      set io-activities io-activities + 1
+    ]
+
+    set my-pointer my-pointer + 1
+    set idx idx + 1
+  ]
+
+  if total-activities = 0 [ report 0.0 ]
+
+  report (io-activities / total-activities)
 
 end
 
@@ -448,10 +451,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-8
-202
-81
-235
+10
+246
+83
+279
 NIL
 setup
 NIL
@@ -465,10 +468,10 @@ NIL
 1
 
 BUTTON
-111
-202
-174
-235
+113
+246
+176
+279
 NIL
 go
 NIL
@@ -497,14 +500,29 @@ NIL
 HORIZONTAL
 
 CHOOSER
-7
-145
-231
-190
+9
+189
+233
+234
 free-cpu-allocation-strategy
 free-cpu-allocation-strategy
 "Highest Priority" "Random"
 1
+
+SLIDER
+8
+145
+197
+178
+lookahead-window
+lookahead-window
+1
+20
+10.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
