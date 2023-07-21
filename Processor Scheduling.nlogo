@@ -116,7 +116,9 @@ to go
   if count processes > 1 [
     ask processes with [ count link-neighbors = 1 ] [
       ;;if random-float 1.0 < yield-probability-by-priority [
-      if random-float 1.0 < yield-probability-by-lookahead-window [
+      ;;if random-float 1.0 < yield-probability-by-lookahead-window [
+      if random-float 1.0 < yield-probability-by-time-on-cpu [
+
         yield-cpu
         set yielded-this-tick? true
       ]
@@ -333,6 +335,16 @@ to-report yield-probability-by-lookahead-window
   if total-activities = 0 [ report 0.0 ]
 
   report (io-activities / total-activities)
+
+end
+
+
+;; Calculate the probability of yielding the CPU based on the time the process has had the CPU.
+;; This is called by a process.
+to-report yield-probability-by-time-on-cpu
+  let max-time-on-cpu 10  ;; This could be a parameter.
+
+  report (time-on-cpu / max-time-on-cpu)
 
 end
 
