@@ -117,10 +117,11 @@ to go
     ask processes with [ count link-neighbors = 1 ] [
       ;;if random-float 1.0 < yield-probability-by-priority [
       ;;if random-float 1.0 < yield-probability-by-lookahead-window [
-      if random-float 1.0 < yield-probability-by-time-on-cpu [
+      if random-float 1.0 < overall-yield-probability [
 
         yield-cpu
         set yielded-this-tick? true
+        set time-on-cpu 0
       ]
     ]
   ]
@@ -346,6 +347,19 @@ to-report yield-probability-by-time-on-cpu
 
   report (time-on-cpu / max-time-on-cpu)
 
+end
+
+
+;; Calculate the overall probability of yielding the CPU as some combination of the probabilites due to the
+;; different considerations.
+to-report overall-yield-probability
+  let priority-weight 0.34
+  let lookahead-weight 0.33
+  let time-on-cpu-weight 0.33
+
+  report (priority-weight * yield-probability-by-priority)
+    + (lookahead-weight * yield-probability-by-lookahead-window)
+    + (time-on-cpu-weight * yield-probability-by-time-on-cpu)
 end
 
 
