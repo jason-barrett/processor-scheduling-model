@@ -34,6 +34,10 @@ cpus-own [
   ;; The current process that is linked to and 'owns' this CPU, referenced by its who number.
   current-process
 
+  ;; Track the context switch state as the number of ticks until the CPU is ready for use by a process that's just
+  ;; switched onto it.
+  switch-state
+
   ;; For evaluation of metrics, store the number of ticks this CPU did not spend doing useful work.
   ticks-spent-idle
 ]
@@ -72,6 +76,7 @@ to setup
     position-cpu-icon
 
     set ticks-spent-idle 0
+    set switch-state 0
   ]
 
   ;; Don't show the links on the screen.
@@ -90,13 +95,13 @@ to go
     advance-workload
     render-workload get-x-position
 
-    if is-workload-complete = true [
+    if is-workload-complete? = true [
       finalize-workload  ;; This should release the CPU the process has been running on.
       die
     ]
   ]
 
-  ;; Track statistics.
+  ;; Track statistics and update agent state.
   ask processes with [ count link-neighbors = 1 ] [
     set time-on-cpu time-on-cpu + 1
   ]
@@ -106,18 +111,23 @@ to go
     if count link-neighbors with [ workload-activity-at-step (progress-pointer - 1) = IO-INST ] = 1 [
       set ticks-spent-idle ticks-spent-idle + 1
     ]
+
+    ;; If we're tracking a context switch state penalty, update it here.
+    advance-switch-state
   ]
 
   ;; Stop the model once every process has completed and died.
   if count processes = 0 [ stop ]
 
+
   ;; Any processes holding CPUs may consider yielding them here.  No process should yield the CPU if it is the only
   ;; process still running.
   if count processes > 1 [
     ask processes with [ count link-neighbors = 1 ] [
-      ;;if random-float 1.0 < yield-probability-by-priority [
-      ;;if random-float 1.0 < yield-probability-by-lookahead-window [
-      if random-float 1.0 < overall-yield-probability [
+      let my-cpu get-my-cpu
+      let cpu-ready? false
+      ask my-cpu [ set cpu-ready? is-cpu-ready? ]
+      if random-float 1.0 < overall-yield-probability and cpu-ready? [
 
         yield-cpu
         set yielded-this-tick? true
@@ -137,12 +147,15 @@ to go
     ])
 
     position-cpu-icon
+    set switch-state switch-penalty
   ]
+
 
   ;; Clear per-tick state.
   ask processes [
     set yielded-this-tick? false
   ]
+
 
   ;; Time marches on.
   tick
@@ -236,6 +249,14 @@ to-report get-x-position
 end
 
 
+;; Report the CPU that this process is using, or Nobody if the process is not currently allocated a CPU.
+;; This is called by a process.
+to-report get-my-cpu
+  ifelse count link-neighbors = 1 [ report one-of link-neighbors ] [ report nobody ]
+
+end
+
+
 ;; Determine the processor's current state (CPU or I/O), given its workload and progress pointer.
 ;; This is called by a process.
 to-report processor-state
@@ -245,7 +266,7 @@ end
 
 ;; Reports true if the processor has completed its workload, false if it has not.
 ;; This is called by a process.
-to-report is-workload-complete
+to-report is-workload-complete?
   ifelse progress-pointer >= workload-length[ report true ] [ report false ]
 end
 
@@ -257,10 +278,12 @@ to advance-workload
     ifelse processor-state = IO-INST [
       set progress-pointer progress-pointer + 1
     ] [
-      ;; CPU-INST case, only advance if on a CPU
-     if count link-neighbors = 1 [
-        set progress-pointer progress-pointer + 1
-      ]
+      ;; CPU-INST case, only advance if on a ready CPU
+      let my-cpu get-my-cpu
+      let ready-cpu? false
+
+      if my-cpu != nobody [ ask my-cpu [ set ready-cpu? is-cpu-ready? ] ]
+      if ready-cpu? [ set progress-pointer progress-pointer + 1 ]
     ]
   ]
 end
@@ -286,6 +309,7 @@ end
 to finalize-workload
   ask my-links [ die ]
 end
+
 
 ;; Calculate the probability of yielding the CPU, based on the priority of the current process.
 ;; This is called by a process.
@@ -370,6 +394,13 @@ to yield-cpu
 end
 
 
+;; Report the process that this CPU is running, or Nobody if the CPU is currently idle.
+;; This is called by a CPU.
+to-report get-my-process
+  ifelse count link-neighbors = 1 [ report one-of link-neighbors ] [ report nobody ]
+
+end
+
 ;; An allocation strategy that simply chooses the next highest priority process.
 ;; This is called by a CPU, and should only be called by a free CPU (not linked to anything).
 to allocate-next-highest-priority
@@ -403,6 +434,18 @@ to position-cpu-icon
     ]
     setxy cpu-x-position max-pycor
 
+end
+
+;; Reports whether the CPU is ready for use, as it may be in the middle of a context switch.
+;; This is called by a CPU.
+to-report is-cpu-ready?
+  ifelse switch-state = 0 [ report true ][ report false ]
+end
+
+;; Advances the context switch state for the called CPU.  (But never beyond 0 = ready.)
+;; This process is called by a CPU.
+to advance-switch-state
+  if switch-state > 0 [ set switch-state switch-state - 1 ]
 end
 
 ;; Reports the highest priority process still alive, which is eligible to take a CPU (i.e., it has not just yielded).
@@ -477,10 +520,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-10
-246
-83
-279
+7
+288
+80
+321
 NIL
 setup
 NIL
@@ -494,10 +537,10 @@ NIL
 1
 
 BUTTON
-113
-246
-176
-279
+110
+288
+173
+321
 NIL
 go
 NIL
@@ -526,10 +569,10 @@ NIL
 HORIZONTAL
 
 CHOOSER
-9
-189
-233
-234
+6
+231
+230
+276
 free-cpu-allocation-strategy
 free-cpu-allocation-strategy
 "Highest Priority" "Random"
@@ -545,6 +588,21 @@ lookahead-window
 1
 20
 10.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+7
+188
+179
+221
+switch-penalty
+switch-penalty
+0
+5
+2.0
 1
 1
 NIL
