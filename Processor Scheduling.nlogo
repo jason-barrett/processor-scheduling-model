@@ -42,6 +42,12 @@ cpus-own [
   ticks-spent-idle
 ]
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Workflow / lifecycle routines.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Setup routine.
+;; Initialize all CPU and process member variables.
 to setup
   clear-all
 
@@ -87,6 +93,7 @@ to setup
   reset-ticks
 
 end  ;; setup
+
 
 to go
 
@@ -159,8 +166,12 @@ to go
 
   ;; Time marches on.
   tick
-end
+end   ;; go
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Processor-called methods and reporters.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Generate a pseudo-random workload based on the given cpu-bound-percentage.
 to-report initialize-workload
@@ -394,6 +405,10 @@ to yield-cpu
 end
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; CPU-called methods and reporters.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;; Report the process that this CPU is running, or Nobody if the CPU is currently idle.
 ;; This is called by a CPU.
 to-report get-my-process
@@ -447,6 +462,11 @@ end
 to advance-switch-state
   if switch-state > 0 [ set switch-state switch-state - 1 ]
 end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; General, or observer-called methods and reporters.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Reports the highest priority process still alive, which is eligible to take a CPU (i.e., it has not just yielded).
 ;; This is called by the observer.
