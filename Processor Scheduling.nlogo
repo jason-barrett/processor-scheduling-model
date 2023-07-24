@@ -70,8 +70,8 @@ to setup
   ;; number 0.
   create-cpus 1 [
 
-    set current-process highest-priority-process
-    create-link-with highest-priority-process
+    set current-process highest-priority-free-process
+    create-link-with highest-priority-free-process
 
     position-cpu-icon
 
@@ -404,7 +404,7 @@ end
 ;; An allocation strategy that simply chooses the next highest priority process.
 ;; This is called by a CPU, and should only be called by a free CPU (not linked to anything).
 to allocate-next-highest-priority
-  create-link-with highest-priority-process
+  create-link-with highest-priority-free-process
   ask links [
     hide-link
   ]
@@ -450,9 +450,9 @@ end
 
 ;; Reports the highest priority process still alive, which is eligible to take a CPU (i.e., it has not just yielded).
 ;; This is called by the observer.
-to-report highest-priority-process
+to-report highest-priority-free-process
   ;; Remember, lower priority numbers mean higher priority.
-  report min-one-of processes with [ yielded-this-tick? = false ] [ priority ]
+  report min-one-of processes with [ get-my-cpu = nobody and yielded-this-tick? = false ] [ priority ]
 end
 
 
@@ -576,7 +576,7 @@ CHOOSER
 free-cpu-allocation-strategy
 free-cpu-allocation-strategy
 "Highest Priority" "Random"
-1
+0
 
 SLIDER
 8
