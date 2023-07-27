@@ -97,7 +97,7 @@ end  ;; setup
 
 to go
 
-  ;; Progress the workloads.
+  ;; Step 1.  Progress the workloads.
   ask processes [
     advance-workload
     render-workload get-x-position
@@ -108,29 +108,36 @@ to go
     ]
   ]
 
-  ;; Track statistics and update agent state.
-  ask processes with [ count link-neighbors = 1 ] [
+  ;; Step 2.  Track statistics and update agent state.
+  ask processes with [ get-my-cpu != nobody ] [
     set time-on-cpu time-on-cpu + 1
   ]
 
-  ask cpus with [ count link-neighbors = 1 ] [
-    ;; Determine whether the linked process just did an IO or a CPU instruction.
-    if count link-neighbors with [ workload-activity-at-step (progress-pointer - 1) = IO-INST ] = 1 [
+  ask cpus with [ get-my-process != nobody ] [
+    ;; If the CPU is not ready, taking a switch penalty, then it is idle.
+    ifelse not is-cpu-ready? [
       set ticks-spent-idle ticks-spent-idle + 1
+    ] [
+      ;; Determine whether the linked process just did an IO or a CPU instruction.  A ready CPU is idle if it's
+      ;; sitting there while its process waits for I/O.
+      if count link-neighbors with [ workload-activity-at-step (progress-pointer - 1) = IO-INST ] = 1 [
+        set ticks-spent-idle ticks-spent-idle + 1
+      ]
     ]
 
     ;; If we're tracking a context switch state penalty, update it here.
     advance-switch-state
   ]
 
-  ;; Stop the model once every process has completed and died.
+  ;; Step 3. Stop the model once every process has completed and died.
   if count processes = 0 [ stop ]
 
 
-  ;; Any processes holding CPUs may consider yielding them here.  No process should yield the CPU if it is the only
-  ;; process still running.
+  ;; Step 4.  Any processes holding CPUs may consider yielding them here.  No process should yield the CPU if it is the only
+  ;; process still running.  No process should yield the CPU if it is still in the process of context switching TO that
+  ;; CPU.
   if count processes > 1 [
-    ask processes with [ count link-neighbors = 1 ] [
+    ask processes with [ get-my-cpu != nobody ] [
       let my-cpu get-my-cpu
       let cpu-ready? false
       ask my-cpu [ set cpu-ready? is-cpu-ready? ]
@@ -144,8 +151,8 @@ to go
   ]
 
 
-  ;; Handle allocation of free CPUs.
-  ask cpus with [ count my-links = 0 ] [
+  ;; Step 5.  Handle allocation of free CPUs for the next tick.
+  ask cpus with [ get-my-process = nobody ] [
     (ifelse free-cpu-allocation-strategy = "Highest Priority" [
       allocate-next-highest-priority
     ]
@@ -596,7 +603,7 @@ CHOOSER
 free-cpu-allocation-strategy
 free-cpu-allocation-strategy
 "Highest Priority" "Random"
-0
+1
 
 SLIDER
 8
@@ -635,15 +642,52 @@ This model explores the behavior of a set of processes, which are running instan
 
 Processes run workloads, which consist of instructions that require use of a CPU, and waits for input/output (I/O).
 
+The agents in this model are:
+
+(1) The processes, whose workloads are visible on the screen as strips of red (CPU instructions) and blue (I/O waits) patches, and
+
+(2) The CPU, which is represented by a flag that appears atop the workload for the process that has that CPU at that time.
+
+The environment is a computer running programs.  A process is an instance of a running program.  It is more of a featurespace environment, as the processes are not physical entities.  (The CPUs are but they are not physically in motion.)
+
+
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+Processes have the following properties:
+
+CPUs have the following properties:
+
+Processes take the following actions at each tick, using rules as described:
+
+They advance their workloads.  If the process has the CPU, it may advance through a CPU instruction or an I/O wait.  Otherwise it may only advance through an I/O wait.
+
+Those that are using a ready CPU will decide whether to yield the CPU on that tick.  If they do, then the CPU is available for another process (subject to the context switch penalty, if configured).  The processes make that decision as a weighted probability, considering the following factors:
+
+* The priority of the process.  Higher priority processes are less likely to yield.
+* The composition of the process's upcoming instructions.  Processes with a high proportion of I/O waits coming up are more likely to yield.
+* The time the process has held the CPU already.  The longer it has had it, the more likely the process is to yield.
+
 
 ## HOW TO USE IT
+
+Use the following input controls to vary the parameters of the model.
+
+NUM-PROCESSES: The number of processes vying for CPU time.
 
 CPU-BOUND-PERCENTAGE: The average proportion of a workload that is spent using the CPU.
 
 WORKLOAD-LENGTH: The time (in ticks) a workload takes (or would take, if it always had the CPU when it needed it), including both CPU instructions and I/O waits.
+
+LOOKAHEAD-WINDOW: The number of instructions ahead the process will consider when determining the likelihood of yielding the CPU based on the upcoming proportion of instructions that use the CPU.
+
+SWITCH-PENALTY: The number of ticks it takes after a CPU switches from one process to another before it can start running instructions for the new process.  Simulates the context switch penalty in real hardware.
+
+FREE-CPU-ALLOCATION-STRATEGY: When a CPU becomes free (yielded, or the process using it has finished), how does it decide which process gets it next?
+
+Highest Priority: Always goes to the next highest priority process still running.
+
+Random: Goes to a random process.
+
 
 ## THINGS TO NOTICE
 
@@ -655,7 +699,11 @@ WORKLOAD-LENGTH: The time (in ticks) a workload takes (or would take, if it alwa
 
 ## EXTENDING THE MODEL
 
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
+Accounting for multiple CPUs would be an obvious enhancement, reflecting the real world.
+
+In the initial version, the priorities of the process differ by 1 and are simply set to the processes' who numbers.  One could set the priorities differently in code, or create a user interface to do so.  Perhaps the best strategies and inputs would be different in a world where one very high priority process shared the CPU(s) with many lower priority processes.
+
+It's also possible to experiment with different weights for the probability factors that come into the decision to yield the CPU (see above).
 
 ## NETLOGO FEATURES
 
