@@ -635,6 +635,24 @@ switch-penalty
 NIL
 HORIZONTAL
 
+PLOT
+29
+376
+229
+526
+CPU Idle Time %
+Time
+% Idle
+0.0
+1.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "let idle-ticks 0\nask cpus [ set idle-ticks idle-ticks + ticks-spent-idle ]\nset idle-ticks idle-ticks / count cpus\n\nplot idle-ticks / ticks"
+
 @#$#@#$#@
 ## WHAT IS IT?
 
