@@ -9,6 +9,12 @@ globals [
   ;; State constants.
   CPU-INST
   IO-INST
+
+  ;; List of the number of ticks taken, per process, to finish.
+  ticks-by-process
+
+  ;; List of the process priorities (saved here to survive the death of the process).
+  priorities-by-process
 ]
 
 processes-own [
@@ -55,6 +61,10 @@ to setup
   set CPU-INST 0
   set IO-INST 1
 
+  ;; Clear the global list variables.
+  set ticks-by-process n-values num-processes [ 0 ]
+  set priorities-by-process n-values num-processes [ 0 ]
+
   ;; Set the default share for the CPU icon.
   set-default-shape cpus "flag"
 
@@ -66,6 +76,7 @@ to setup
     set yielded-this-tick? false
 
     set priority who
+    set priorities-by-process replace-item who priorities-by-process priority
 
     set time-on-cpu 0
   ]
@@ -326,6 +337,9 @@ end
 ;; This is called by a process.
 to finalize-workload
   ask my-links [ die ]
+
+  ;; Record the number of ticks the process took to finish.
+  set ticks-by-process replace-item who ticks-by-process ticks
 end
 
 
@@ -589,7 +603,7 @@ num-processes
 num-processes
 1
 8
-5.0
+8.0
 1
 1
 NIL
@@ -603,7 +617,7 @@ CHOOSER
 free-cpu-allocation-strategy
 free-cpu-allocation-strategy
 "Highest Priority" "Random"
-1
+0
 
 SLIDER
 8
@@ -614,7 +628,7 @@ lookahead-window
 lookahead-window
 1
 20
-10.0
+20.0
 1
 1
 NIL
@@ -1044,6 +1058,34 @@ NetLogo 6.2.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="experiment" repetitions="10" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ticks</metric>
+    <enumeratedValueSet variable="cpu-bound-percentage">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="free-cpu-allocation-strategy">
+      <value value="&quot;Random&quot;"/>
+      <value value="&quot;Highest Priority&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num-processes">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="switch-penalty">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="workload-length">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="lookahead-window">
+      <value value="8"/>
+      <value value="2"/>
+      <value value="20"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
