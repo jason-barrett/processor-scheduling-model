@@ -84,10 +84,7 @@ to setup
   set IO-INST 1
 
   ;; Set the weights to use when calculating an overall priority of yielding the CPU.
-  set priority-weight 0.34
-  set lookahead-weight 0.33
-  set time-on-cpu-weight 0.33
-
+  set-yield-weights
 
   ;; Reset the global list variables to all-zeroes lists.
   set ticks-by-process n-values num-processes [ 0 ]
@@ -173,7 +170,10 @@ to go
   ]
 
   ;; Step 3. Stop the model once every process has completed and died.
-  if count processes = 0 [ stop ]
+  if count processes = 0 [
+    finalize-model-run
+    stop
+  ]
 
 
   ;; Step 4.  Any processes holding CPUs may consider yielding them here.  No process should yield the CPU if it is the only
@@ -447,6 +447,7 @@ end
 
 ;; Calculate the overall probability of yielding the CPU as some combination of the probabilites due to the
 ;; different considerations.
+;; This is called by a process.
 to-report overall-yield-probability
 
   report (priority-weight * yield-probability-by-priority)
@@ -571,6 +572,45 @@ to-report chi-square-completion-times-distance
   report sqrt chi-sq-distance
 
 end
+
+;; This command sets the weights that will be given to different factors when a process considers whether to yield the
+;; CPU, based on the chooser input yield-strategy.
+;; This command is called by the observer.
+to set-yield-weights
+  (ifelse
+    yield-strategy = "Equal Weight" [
+      set priority-weight 0.34
+      set lookahead-weight 0.33
+      set time-on-cpu-weight 0.33
+    ]
+    yield-strategy = "Favor Priority" [
+      set priority-weight 0.6
+      set lookahead-weight 0.2
+      set time-on-cpu-weight 0.2
+    ]
+    yield-strategy = "Favor Lookahead" [
+      set priority-weight 0.2
+      set lookahead-weight 0.6
+      set time-on-cpu-weight 0.2
+    ]
+    yield-strategy = "Favor Time On CPU" [
+      set priority-weight 0.2
+      set lookahead-weight 0.2
+      set time-on-cpu-weight 0.6
+    ]
+  )
+end
+
+
+;; This command performs any final processing we want to do at the end of the model run.
+to finalize-model-run
+  output-print "CPU Instruction Throughput: "
+  output-print cpu-instruction-throughput
+  output-print ""
+  output-print "Chi-Square Completion Times Distance: "
+  output-print chi-square-completion-times-distance
+
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 296
@@ -623,17 +663,17 @@ workload-length
 workload-length
 20
 200
-30.0
+100.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-7
-288
-80
-321
+63
+349
+136
+382
 NIL
 setup
 NIL
@@ -647,13 +687,13 @@ NIL
 1
 
 BUTTON
-110
-288
-173
-321
+166
+349
+229
+382
 NIL
 go
-NIL
+T
 1
 T
 OBSERVER
@@ -672,7 +712,7 @@ num-processes
 num-processes
 1
 8
-5.0
+8.0
 1
 1
 NIL
@@ -686,7 +726,7 @@ CHOOSER
 free-cpu-allocation-strategy
 free-cpu-allocation-strategy
 "Highest Priority" "Random"
-1
+0
 
 SLIDER
 6
@@ -697,7 +737,7 @@ lookahead-window
 lookahead-window
 1
 20
-15.0
+20.0
 1
 1
 NIL
@@ -712,7 +752,7 @@ switch-penalty
 switch-penalty
 0
 5
-1.0
+2.0
 1
 1
 NIL
@@ -753,6 +793,23 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot cpu-instruction-throughput"
+
+CHOOSER
+8
+284
+192
+329
+yield-strategy
+yield-strategy
+"Equal Weight" "Favor Priority" "Favor Lookahead" "Favor Time On CPU"
+3
+
+OUTPUT
+800
+377
+1115
+489
+12
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1152,16 +1209,23 @@ NetLogo 6.2.0
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="experiment" repetitions="10" runMetricsEveryStep="false">
+  <experiment name="experiment" repetitions="5" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>go</go>
-    <metric>ticks</metric>
+    <metric>cpu-instruction-throughput</metric>
+    <metric>chi-square-completion-times-distance</metric>
     <enumeratedValueSet variable="cpu-bound-percentage">
       <value value="0.5"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="free-cpu-allocation-strategy">
       <value value="&quot;Random&quot;"/>
       <value value="&quot;Highest Priority&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="yield-strategy">
+      <value value="&quot;Equal Weight&quot;"/>
+      <value value="&quot;Favor Priority&quot;"/>
+      <value value="&quot;Favor Lookahead&quot;"/>
+      <value value="&quot;Favor Time On CPU&quot;"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="num-processes">
       <value value="5"/>
@@ -1174,7 +1238,7 @@ NetLogo 6.2.0
     </enumeratedValueSet>
     <enumeratedValueSet variable="lookahead-window">
       <value value="8"/>
-      <value value="2"/>
+      <value value="14"/>
       <value value="20"/>
     </enumeratedValueSet>
   </experiment>
