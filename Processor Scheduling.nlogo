@@ -10,6 +10,17 @@ globals [
   CPU-INST
   IO-INST
 
+  ;; The probability of any process's yielding the CPU on any tick will be a weighted combination of factors including:
+  ;;  * the priority of the process
+  ;;  * the composition of the upcoming set of instructions
+  ;;  * the time the process has had the CPU already
+  ;; These variables control the weights each of those factors are given.  They should sum to 1, and be set once,
+  ;; during setup.
+  priority-weight
+  lookahead-weight
+  time-on-cpu-weight
+
+
   ;; List of the number of ticks taken, per process, to finish.
   ticks-by-process
 
@@ -71,6 +82,12 @@ to setup
   ;; Set permanent values for state constants.
   set CPU-INST 0
   set IO-INST 1
+
+  ;; Set the weights to use when calculating an overall priority of yielding the CPU.
+  set priority-weight 0.34
+  set lookahead-weight 0.33
+  set time-on-cpu-weight 0.33
+
 
   ;; Reset the global list variables to all-zeroes lists.
   set ticks-by-process n-values num-processes [ 0 ]
@@ -431,9 +448,6 @@ end
 ;; Calculate the overall probability of yielding the CPU as some combination of the probabilites due to the
 ;; different considerations.
 to-report overall-yield-probability
-  let priority-weight 0.34
-  let lookahead-weight 0.33
-  let time-on-cpu-weight 0.33
 
   report (priority-weight * yield-probability-by-priority)
     + (lookahead-weight * yield-probability-by-lookahead-window)
@@ -602,9 +616,9 @@ HORIZONTAL
 
 SLIDER
 8
-103
+104
 180
-136
+137
 workload-length
 workload-length
 20
@@ -672,13 +686,13 @@ CHOOSER
 free-cpu-allocation-strategy
 free-cpu-allocation-strategy
 "Highest Priority" "Random"
-0
+1
 
 SLIDER
-8
-145
-197
-178
+6
+189
+195
+222
 lookahead-window
 lookahead-window
 1
@@ -691,24 +705,24 @@ HORIZONTAL
 
 SLIDER
 7
-188
+148
 179
-221
+181
 switch-penalty
 switch-penalty
 0
 5
-2.0
+1.0
 1
 1
 NIL
 HORIZONTAL
 
 PLOT
-793
-20
-993
-170
+795
+22
+1045
+172
 CPU Idle Time %
 Time
 % Idle
@@ -725,7 +739,7 @@ PENS
 PLOT
 794
 187
-994
+1046
 337
 CPU Instruction Throughput
 Time
@@ -772,6 +786,12 @@ Those that are using a ready CPU will decide whether to yield the CPU on that ti
 * The composition of the process's upcoming instructions.  Processes with a high proportion of I/O waits coming up are more likely to yield.
 * The time the process has held the CPU already.  The longer it has had it, the more likely the process is to yield.
 
+
+CPUs take the following actions at each tick, using rules as described:
+
+They update statistics.
+
+They determine whether they need to wait before running any CPU instructions, by tracking a potential context switch penalty if they have recently switched processes.
 
 ## HOW TO USE IT
 
