@@ -15,6 +15,17 @@ globals [
 
   ;; List of the process priorities (saved here to survive the death of the process).
   priorities-by-process
+
+  ;; List of the numbers of CPU instructions completed per process (also saved to survive the death of the
+  ;; process.
+  cpu-instructions-by-process
+
+  ;; Current (approximate) CPU instruction throughput in terms of instructions per tick.  This will be measured
+  ;; across all CPUs if there are more than one.
+  cpu-instruction-throughput
+
+  ;; Measure of what the 'ideal' throughput would be across all processes and CPUs.
+  ideal-throughput
 ]
 
 processes-own [
@@ -61,9 +72,10 @@ to setup
   set CPU-INST 0
   set IO-INST 1
 
-  ;; Clear the global list variables.
+  ;; Reset the global list variables to all-zeroes lists.
   set ticks-by-process n-values num-processes [ 0 ]
   set priorities-by-process n-values num-processes [ 0 ]
+  set cpu-instructions-by-process n-values num-processes [ 0 ]
 
   ;; Set the default share for the CPU icon.
   set-default-shape cpus "flag"
@@ -120,6 +132,9 @@ to go
   ]
 
   ;; Step 2.  Track statistics and update agent state.
+  set ideal-throughput count cpus
+  set cpu-instruction-throughput (reduce + cpu-instructions-by-process) / (ticks + 1)
+
   ask processes with [ get-my-cpu != nobody ] [
     set time-on-cpu time-on-cpu + 1
   ]
@@ -312,7 +327,14 @@ to advance-workload
       let ready-cpu? false
 
       if my-cpu != nobody [ ask my-cpu [ set ready-cpu? is-cpu-ready? ] ]
-      if ready-cpu? [ set progress-pointer progress-pointer + 1 ]
+      if ready-cpu? [
+        set progress-pointer progress-pointer + 1
+
+        ;; Track the fact that I just completed a CPU instruction.
+        let cpu-instructions-this-process item who cpu-instructions-by-process
+        set cpu-instructions-this-process cpu-instructions-this-process + 1
+        set cpu-instructions-by-process replace-item who cpu-instructions-by-process cpu-instructions-this-process
+      ]
     ]
   ]
 end
@@ -502,6 +524,39 @@ end
 to-report random-process
   report one-of processes with [ yielded-this-tick? = false ]
 end
+
+;; Calculate and report a measure of the difference between the actual histogram of times each process took to complete
+;; its workload, and the time it 'should' have taken based on the relative priorities of each process.  This is a
+;; measure of how closely the processes' priorities were followed.
+;; This is intended to be called by the observer after the model run has ended.
+to-report chi-square-completion-times-distance
+  ;; The actual histogram is in the global variable ticks-by-process.  The 'ideal' histogram can be derived from the
+  ;; variable priorities-by-process.
+  let largest-priority max priorities-by-process  ;; This is the *lowest* priority.
+  let most-ticks-taken max ticks-by-process
+  let ideal-ticks-histogram n-values num-processes [ 0 ]
+
+  let idx 0
+  repeat num-processes [
+    let this-priority item idx priorities-by-process
+    set ideal-ticks-histogram replace-item idx ideal-ticks-histogram (this-priority * (most-ticks-taken / largest-priority))
+
+    set idx idx + 1
+  ]
+
+  ;; Calculate the chi-square distance measure based on the actual and ideal ticks taken arrays.
+  set idx 0
+  let chi-sq-distance 0
+  repeat num-processes [
+    let num (item idx ticks-by-process - item idx ideal-ticks-histogram)
+      * (item idx ticks-by-process - item idx ideal-ticks-histogram)
+    let denom item idx ticks-by-process + item idx ideal-ticks-histogram
+    set chi-sq-distance chi-sq-distance + (num / denom)
+  ]
+
+  report sqrt chi-sq-distance
+
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 296
@@ -603,7 +658,7 @@ num-processes
 num-processes
 1
 8
-8.0
+5.0
 1
 1
 NIL
@@ -628,7 +683,7 @@ lookahead-window
 lookahead-window
 1
 20
-20.0
+15.0
 1
 1
 NIL
@@ -650,10 +705,10 @@ NIL
 HORIZONTAL
 
 PLOT
-29
-376
-229
-526
+793
+20
+993
+170
 CPU Idle Time %
 Time
 % Idle
@@ -666,6 +721,24 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "let idle-ticks 0\nask cpus [ set idle-ticks idle-ticks + ticks-spent-idle ]\nset idle-ticks idle-ticks / count cpus\n\nplot idle-ticks / ticks"
+
+PLOT
+794
+187
+994
+337
+CPU Instruction Throughput
+Time
+Throughput
+0.0
+10.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot cpu-instruction-throughput"
 
 @#$#@#$#@
 ## WHAT IS IT?
