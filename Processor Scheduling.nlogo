@@ -759,28 +759,10 @@ NIL
 HORIZONTAL
 
 PLOT
-795
-22
-1045
-172
-CPU Idle Time %
-Time
-% Idle
-0.0
-1.0
-0.0
-1.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "let idle-ticks 0\nask cpus [ set idle-ticks idle-ticks + ticks-spent-idle ]\nset idle-ticks idle-ticks / count cpus\n\nplot idle-ticks / ticks"
-
-PLOT
-794
-187
-1046
-337
+768
+27
+1020
+177
 CPU Instruction Throughput
 Time
 Throughput
@@ -805,10 +787,10 @@ yield-strategy
 3
 
 OUTPUT
-800
-377
-1115
-489
+768
+205
+1083
+317
 12
 
 @#$#@#$#@
@@ -1209,7 +1191,7 @@ NetLogo 6.2.0
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="experiment" repetitions="5" runMetricsEveryStep="false">
+  <experiment name="experiment" repetitions="10" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>go</go>
     <metric>cpu-instruction-throughput</metric>
@@ -1228,7 +1210,7 @@ NetLogo 6.2.0
       <value value="&quot;Favor Time On CPU&quot;"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="num-processes">
-      <value value="5"/>
+      <value value="8"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="switch-penalty">
       <value value="2"/>
