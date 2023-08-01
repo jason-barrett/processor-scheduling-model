@@ -737,7 +737,7 @@ lookahead-window
 lookahead-window
 1
 20
-20.0
+4.0
 1
 1
 NIL
@@ -752,7 +752,7 @@ switch-penalty
 switch-penalty
 0
 5
-2.0
+0.0
 1
 1
 NIL
@@ -784,7 +784,7 @@ CHOOSER
 yield-strategy
 yield-strategy
 "Equal Weight" "Favor Priority" "Favor Lookahead" "Favor Time On CPU"
-3
+2
 
 OUTPUT
 768
@@ -813,7 +813,25 @@ The environment is a computer running programs.  A process is an instance of a r
 
 Processes have the following properties:
 
+WORKLOAD: The set of instructions (i.e., computer program) it is to run, including interspersed runs of CPU instructions and I/O waits.  Thw workload is represented as a list of workload-length length, where each element is either the constant CPU-INST or the constant IO-INST.
+
+PROGRESS-POINTER: This tracks where in the workload the process currently stands,
+
+YIELDED-THIS-TICK?: A processor who has just yielded the CPU is not eligible to grab the CPU on the same tick.  This variable tracks that state.
+
+PRIORITY: The priority of the process relative to other properties.  This is numerical, lower numbers mean higher priority.  The code sets this simply to the who number of the process, but one could experiment with other priority mixes.  Priority need not be an integer.
+
+TIME-ON-CPU: Keeps track of the consecutive time this process has held the CPU.
+
+
 CPUs have the following properties:
+
+CURRENT-PROCESS: The process, by who number, that is currently running on the CPU.  This is not tracked currently, but could be used for display purposes.
+
+SWITCH-STATE: When a context switch penalty is in effect, controlled by the SWITCH-PENALTY input variable, this tracks the state of the penalty for each CPU.  It is set to the penalty value on switching processes, and decremented each tick to 0.
+
+TICKS-SPENT-IDLE: This tracks the time that a CPU spends idle, where 'idle' means running a process that waits for I/O that tick, or incurring a switch penalty.
+
 
 Processes take the following actions at each tick, using rules as described:
 
