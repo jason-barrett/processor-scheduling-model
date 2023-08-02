@@ -122,6 +122,9 @@ to setup
     set switch-state 0
   ]
 
+  ;; Show a legend on the screen.
+  show-legend
+
   ;; Don't show the links on the screen.
   ask links[
     hide-link
@@ -602,6 +605,25 @@ to set-yield-weights
 end
 
 
+;; Show a legend on the screen to illustrate the colors used to represent different workload activities.
+to show-legend
+  ask patch (-6) (max-pycor - 2) [
+    set pcolor red
+  ]
+
+  ask patch (-9) (max-pycor - 2) [
+    set plabel "CPU Instructions"
+  ]
+
+  ask patch (-6) (max-pycor - 4) [
+    set pcolor blue
+  ]
+
+  ask patch (-9) (max-pycor - 4) [
+    set plabel "I/O Waits"
+  ]
+end
+
 ;; This command performs any final processing we want to do at the end of the model run.
 to finalize-model-run
   output-print "CPU Instruction Throughput: "
@@ -798,7 +820,7 @@ OUTPUT
 
 This model explores the behavior of a set of processes, which are running instances of computer programs, as they share the use of one or more central processing units (CPUs).
 
-Processes run workloads, which consist of instructions that require use of a CPU, and waits for input/output (I/O).
+Processes run workloads, which consist of instructions that require use of a CPU, and waits for input/output (I/O).  In this model, the workloads are represented visually, with CPU instructions in red and I/O waits in blue.
 
 The agents in this model are:
 
@@ -870,6 +892,14 @@ Highest Priority: Always goes to the next highest priority process still running
 
 Random: Goes to a random process.
 
+######################################################################################
+
+Look for the following output as the model runs and when it has finished.
+
+CPU Instruction Throughput: This is shown as a graph as the model runs, and the final throughput appears in the output window when it has finished.  Throughput is measured as the number of CPU instructions processed per tick.  This is basically the reverse of the CPU idle time.  Throughput takes a 'hit' when the CPU is idle; that is, when the processor using it is waiting on I/O, or when the CPU is in the midst of a context switch.
+
+Chi-Square Completion Times Distance: This is a measure of how closely the final distribution of times taken for each process to complete matches the distribution of process priorities.  Ideally, for instance, if two processes have priorities 1 and 2, the final completion times should be in a 1:2 ratio.  (Priorities do not have to be integers.)  This metric uses a chi-square distance calculation to assess how close the priorities ratio is to the completion times ratio.
+
 
 ## THINGS TO NOTICE
 
@@ -883,21 +913,17 @@ Random: Goes to a random process.
 
 Accounting for multiple CPUs would be an obvious enhancement, reflecting the real world.
 
-In the initial version, the priorities of the process differ by 1 and are simply set to the processes' who numbers.  One could set the priorities differently in code, or create a user interface to do so.  Perhaps the best strategies and inputs would be different in a world where one very high priority process shared the CPU(s) with many lower priority processes.
+In the initial version, the priorities of the process differ by 1 and are simply set to the processes' who numbers.  One could set the priorities differently in code, or create a user interface to do so.  Perhaps the best strategies and inputs would be different in a world where one very high priority process shared the CPU(s) with many lower priority processes.  Priorities need not be integers.
 
-It's also possible to experiment with different weights for the probability factors that come into the decision to yield the CPU (see above).
+It's also possible to experiment with different weights for the probability factors that come into the decision to yield the CPU (see above).  It would be interesting to run a Behavior Search job to use a genetic algorithm or some other AI strategy to find the 'best' weights in a variety of scenarios.
 
 ## NETLOGO FEATURES
 
 (interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
 
-## RELATED MODELS
-
-(models in the NetLogo Models Library and elsewhere which are of related interest)
 
 ## CREDITS AND REFERENCES
-
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+https://github.com/jason-barrett/processor-scheduling-model
 @#$#@#$#@
 default
 true
