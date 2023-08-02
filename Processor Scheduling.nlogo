@@ -855,6 +855,8 @@ SWITCH-STATE: When a context switch penalty is in effect, controlled by the SWIT
 TICKS-SPENT-IDLE: This tracks the time that a CPU spends idle, where 'idle' means running a process that waits for I/O that tick, or incurring a switch penalty.
 
 
+########################################################################################
+
 Processes take the following actions at each tick, using rules as described:
 
 They advance their workloads.  If the process has the CPU, it may advance through a CPU instruction or an I/O wait.  Otherwise it may only advance through an I/O wait.
@@ -871,6 +873,33 @@ CPUs take the following actions at each tick, using rules as described:
 They update statistics.
 
 They determine whether they need to wait before running any CPU instructions, by tracking a potential context switch penalty if they have recently switched processes.
+
+########################################################################################
+
+The following sequence of events happens on setup (trivial actions omitted):
+
+1. The model sets the yield weights to obey the input parameter yield-strategy.
+
+2. The model initializes lists for statistics.
+
+3. The model creates num-processes, initializes their workloads, and renders them on the screen, and initializes all variables and statistics.\
+
+4. The model creates the CPU(s) and initially allocates them to the highest priority process(es)  CPU statistics are initialized as well.
+
+
+The following sequence of events happens on each tick ('go') (trivial actions omitted):
+
+1. Each process advances its workload, if it can, and updates the rendering on the screen.  If the workload completes, the process dies, after saving any state we'll need to calculate final statistics.
+
+2. Processes and CPUs update their state and statistics based on the actions taken in (1).
+
+3. The model checks to see if all processes have died, in which case it calculates and prints final statistics and stops the run.
+
+4. All processes holding CPUs execute the logic that governs the decision to yield the CPU or not.
+
+5. Any CPUs which have been yielded choose the next process that gets to use them.
+
+
 
 ## HOW TO USE IT
 
@@ -891,6 +920,16 @@ FREE-CPU-ALLOCATION-STRATEGY: When a CPU becomes free (yielded, or the process u
 Highest Priority: Always goes to the next highest priority process still running.
 
 Random: Goes to a random process.
+
+YIELD-STRATEGY: A set of alternative strategies each process will use when deciding whether to yield the CPU on any turn.  Each strategy corresponds to a different set of weights on the yield factors listed above.
+
+Equal Weights: No factor has preference over any others.
+
+Favor Priority: The process's priority is given higher weight in the yield decision.
+
+Favor Lookahead: The upcoming instruction composition is given higher weight in the yield decision.
+
+Favor Time On CPU: The time the process has had the CPU is given higher weight in the yield decision.
 
 ######################################################################################
 
