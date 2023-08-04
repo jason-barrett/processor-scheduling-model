@@ -627,10 +627,10 @@ end
 ;; This command performs any final processing we want to do at the end of the model run.
 to finalize-model-run
   output-print "CPU Instruction Throughput: "
-  output-print cpu-instruction-throughput
+  output-print precision cpu-instruction-throughput 3
   output-print ""
   output-print "Chi-Square Completion Times Distance: "
-  output-print chi-square-completion-times-distance
+  output-print precision chi-square-completion-times-distance 3
 
 end
 @#$#@#$#@
@@ -774,7 +774,7 @@ switch-penalty
 switch-penalty
 0
 5
-0.0
+1.0
 1
 1
 NIL
@@ -791,12 +791,13 @@ Throughput
 0.0
 10.0
 0.0
-1.0
+1.2
 true
-false
+true
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot cpu-instruction-throughput"
+"Actual" 1.0 0 -16777216 true "" "plot cpu-instruction-throughput"
+"Ideal" 1.0 0 -14070903 true "" "plot ideal-throughput"
 
 CHOOSER
 8
