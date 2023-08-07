@@ -759,7 +759,7 @@ lookahead-window
 lookahead-window
 1
 20
-4.0
+2.0
 1
 1
 NIL
@@ -807,7 +807,7 @@ CHOOSER
 yield-strategy
 yield-strategy
 "Equal Weight" "Favor Priority" "Favor Lookahead" "Favor Time On CPU"
-2
+0
 
 OUTPUT
 768
@@ -940,14 +940,9 @@ CPU Instruction Throughput: This is shown as a graph as the model runs, and the 
 
 Chi-Square Completion Times Distance: This is a measure of how closely the final distribution of times taken for each process to complete matches the distribution of process priorities.  Ideally, for instance, if two processes have priorities 1 and 2, the final completion times should be in a 1:2 ratio.  (Priorities do not have to be integers.)  This metric uses a chi-square distance calculation to assess how close the priorities ratio is to the completion times ratio.
 
-
-## THINGS TO NOTICE
-
-(suggested things for the user to notice while running the model)
-
 ## THINGS TO TRY
 
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
+Try to find an optimal lookahead window, given different strategies and environmental characteristics.  I found that often smaller windows looked better, which seemed counter-intuitive (wouldn't more information be better?) until I recalled how I was creating the workloads using random blocks of CPU and I/O, which would tend to even out to the cpu-instruction-percentage over large windows.  We also might get more interesting use of the lookahead window if the workloads were heterogeneous in their I/O wait characteristics.
 
 ## EXTENDING THE MODEL
 
@@ -956,11 +951,6 @@ Accounting for multiple CPUs would be an obvious enhancement, reflecting the rea
 In the initial version, the priorities of the process differ by 1 and are simply set to the processes' who numbers.  One could set the priorities differently in code, or create a user interface to do so.  Perhaps the best strategies and inputs would be different in a world where one very high priority process shared the CPU(s) with many lower priority processes.  Priorities need not be integers.
 
 It's also possible to experiment with different weights for the probability factors that come into the decision to yield the CPU (see above).  It would be interesting to run a Behavior Search job to use a genetic algorithm or some other AI strategy to find the 'best' weights in a variety of scenarios.
-
-## NETLOGO FEATURES
-
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
-
 
 ## CREDITS AND REFERENCES
 https://github.com/jason-barrett/processor-scheduling-model
